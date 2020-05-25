@@ -3,59 +3,78 @@
 #include <iostream>
 using namespace std;
 
+enum NType { PRIORITY, ORDINARY, EMPTY };
+
 typedef struct Node {
     string prefix;
+    NType _type;
     struct Node *left;
     struct Node *right;
 } NODE;
 
-// Create a node instance
 NODE *create_node() {
-    NODE *n = (NODE *)calloc(1, sizeof(NODE));
-    n->prefix = "NULL";
-    n->left = NULL;
-    n->right = NULL;
-    return n;
+    NODE *ptr = (NODE *)calloc(1, sizeof(NODE));
+    ptr->prefix = "NULL";
+    ptr->_type = NType::EMPTY;
+    ptr->left = NULL;
+    ptr->right = NULL;
+    return ptr;
 }
 
-// Using to construct a binery tries with prefixes
-void build_node(NODE *root, string prefix) {
-    NODE *ptr = root;
-    for (int i = 0; i < prefix.length(); i++) {
-        if (prefix[i] == '0') {
-            if (ptr->left == NULL) {
-                ptr->left = create_node();
-            }
-            ptr = ptr->left;
-        } else {
-            if (ptr->right == NULL) {
-                ptr->right = create_node();
-            }
-            ptr = ptr->right;
+void build_node(NODE *root, string prefix, int level) {
+    if (root->_type == NType::EMPTY) {
+        root->prefix = prefix;
+        if (prefix.length() > level)
+            root->_type = NType::PRIORITY;
+        else
+            root->_type = NType::ORDINARY;
+        return;
+    } else {
+        if (prefix.length() == level && root->_type == NType::PRIORITY) {
+            string temp_prefix = root->prefix;
+            root->prefix = prefix;
+            prefix = temp_prefix;
+            root->_type = NType::ORDINARY;
+        } else if (prefix.length() > root->prefix.length() &&
+                   prefix.substr(0, root->prefix.length()) == root->prefix &&
+                   root->_type == NType::PRIORITY) {
+            string temp_prefix = root->prefix;
+            root->prefix = prefix;
+            prefix = temp_prefix;
         }
+
+        NODE *next = NULL;
+        if (prefix[level++] == '0') {
+            if (root->left == NULL)
+                root->left = create_node();
+            next = root->left;
+        } else {
+            if (root->right == NULL)
+                root->right = create_node();
+            next = root->right;
+        }
+        build_node(next, prefix, level);
     }
-    ptr->prefix = prefix;
 }
 
 string search(NODE *root, string addr) {
     string BMP = "*";
     NODE *ptr = root;
-    for (int i = 0; i < addr.length(); i++) {
-        if (addr[i] == '0')
+    int level = 0;
+    do {
+        if (addr.substr(0, ptr->prefix.length()) == ptr->prefix) {
+            BMP = ptr->prefix;
+            if (ptr->_type == NType::PRIORITY)
+                break;
+        }
+        if (addr[level++] == '0')
             ptr = ptr->left;
         else
             ptr = ptr->right;
-        if (ptr == NULL ||
-            ptr->prefix != "NULL" &&
-                addr.substr(0, ptr->prefix.length()) != ptr->prefix)
-            break;
-        if (ptr->prefix != "NULL")
-            BMP = ptr->prefix;
-    }
+    } while (ptr != NULL);
     return BMP;
 }
 
-// Free memory
 void free_root(NODE *root) {
     if (root->left != NULL)
         free_root(root->left);
@@ -65,7 +84,7 @@ void free_root(NODE *root) {
 }
 
 int main() {
-    cout << "Binary Tries" << endl;
+    cout << "Priority Tries" << endl;
     const string b_filename = "prefix_v4_build";
     const string u_filename = "prefix_v4_update";
     const string s_filename = "testing_bin";
@@ -81,7 +100,7 @@ int main() {
     // Constructing binary tries
     while (getline(b_file, buffer)) {
         if (buffer.length() > 0) {
-            build_node(root, buffer);
+            build_node(root, buffer, 0);
         }
     }
     b_file.close();
@@ -96,7 +115,7 @@ int main() {
         std::chrono::steady_clock::now();
     while (getline(u_file, buffer)) {
         if (buffer.length() > 0) {
-            build_node(root, buffer);
+            build_node(root, buffer, 0);
         }
     }
     std::chrono::steady_clock::time_point end =
