@@ -1,50 +1,56 @@
-#include <chrono>
+#include "time.h"
+#include "utility.h"
 #include <fstream>
 #include <iostream>
+#define IPbits 32
 using namespace std;
 
 enum NType { PRIORITY, ORDINARY, EMPTY };
 
 typedef struct Node {
-    string prefix;
-    NType _type;
-    struct Node *left;
-    struct Node *right;
-} NODE;
+    netrange net;
+    NType _type = NType::EMPTY;
+    struct Node *left = NULL;
+    struct Node *right = NULL;
+} node;
 
-NODE *create_node() {
-    NODE *ptr = (NODE *)calloc(1, sizeof(NODE));
-    ptr->prefix = "NULL";
+node *create_node() {
+    node *ptr = (node *)calloc(1, sizeof(node));
     ptr->_type = NType::EMPTY;
     ptr->left = NULL;
     ptr->right = NULL;
     return ptr;
 }
 
-void build_node(NODE *root, string prefix, int level) {
+void build_node(node *root, netrange net, int level) {
     if (root->_type == NType::EMPTY) {
-        root->prefix = prefix;
-        if (prefix.length() > level)
+        root->net = net;
+        if (net.mask > level)
             root->_type = NType::PRIORITY;
         else
             root->_type = NType::ORDINARY;
         return;
     } else {
-        if (prefix.length() == level && root->_type == NType::PRIORITY) {
-            string temp_prefix = root->prefix;
-            root->prefix = prefix;
-            prefix = temp_prefix;
+        unsigned char shift = IPbits - root->net.mask;
+        if (net.mask == level && root->_type == NType::PRIORITY) {
+            netrange temp_net = root->net;
+            root->net = net;
+            net = temp_net;
             root->_type = NType::ORDINARY;
-        } else if (prefix.length() > root->prefix.length() &&
-                   prefix.substr(0, root->prefix.length()) == root->prefix &&
+        } else if (net.mask > root->net.mask &&
+                   net.addr >> shift == root->net.addr >> shift &&
                    root->_type == NType::PRIORITY) {
-            string temp_prefix = root->prefix;
-            root->prefix = prefix;
-            prefix = temp_prefix;
+            netrange temp_net = root->net;
+            root->net = net;
+            net = temp_net;
         }
+        node *next = NULL;
+        unsigned long long mask = 1;
+        unsigned long long sbit = 0;
+        mask <<= (IPbits - (++level) - 1);
+        sbit = net.addr & mask;
 
-        NODE *next = NULL;
-        if (prefix[level++] == '0') {
+        if (sbit == 0) {
             if (root->left == NULL)
                 root->left = create_node();
             next = root->left;
@@ -53,21 +59,30 @@ void build_node(NODE *root, string prefix, int level) {
                 root->right = create_node();
             next = root->right;
         }
-        build_node(next, prefix, level);
+        build_node(next, net, level);
     }
 }
 
-string search(NODE *root, string addr) {
-    string BMP = "*";
-    NODE *ptr = root;
-    int level = 0;
+netrange search(node *root, unsigned long long addr) {
+    netrange BMP;
+    BMP.addr = 0;
+    BMP.mask = 0;
+    node *ptr = root;
+    unsigned char level = 0;
+    unsigned char shift = 0;
+    unsigned long long mask = 1;
+    unsigned long long sbit = 0;
     do {
-        if (addr.substr(0, ptr->prefix.length()) == ptr->prefix) {
-            BMP = ptr->prefix;
+        shift = IPbits - ptr->net.mask;
+        if (addr >> shift == ptr->net.addr >> shift) {
+            BMP = ptr->net;
             if (ptr->_type == NType::PRIORITY)
                 break;
         }
-        if (addr[level++] == '0')
+        mask = 1;
+        mask <<= (IPbits - (++level) - 1);
+        sbit = addr & mask;
+        if (sbit == 0)
             ptr = ptr->left;
         else
             ptr = ptr->right;
@@ -75,7 +90,7 @@ string search(NODE *root, string addr) {
     return BMP;
 }
 
-void free_root(NODE *root) {
+void free_root(node *root) {
     if (root->left != NULL)
         free_root(root->left);
     if (root->right != NULL)
@@ -85,22 +100,25 @@ void free_root(NODE *root) {
 
 int main() {
     cout << "Priority Tries" << endl;
-    const string b_filename = "prefix_v4_build";
-    const string u_filename = "prefix_v4_update";
-    const string s_filename = "testing_bin";
-    NODE *root = create_node();
+    const string b_filename = "./data/ipv4_build.txt";
+    const string u_filename = "./data/ipv4_update.txt";
+    const string s_filename = "./data/ipv4_search_500000.txt";
+
+    node *root = create_node();
     string buffer;
+    clock_t begin, end;
 
     // Build
     ifstream b_file(b_filename);
     // Failed to open file
-    if (!b_file.is_open())
+    if (!b_file.is_open()) {
+        cout << "Failed to open file." << endl;
         return 1;
-
-    // Constructing binary tries
+    }
+    // Constructing priority tries
     while (getline(b_file, buffer)) {
         if (buffer.length() > 0) {
-            build_node(root, buffer, 0);
+            build_node(root, v4sub2nr(buffer), 0);
         }
     }
     b_file.close();
@@ -108,44 +126,38 @@ int main() {
     // Update
     ifstream u_file(u_filename);
     // Failed to open file
-    if (!u_file.is_open())
+    if (!u_file.is_open()) {
+        cout << "Failed to open file." << endl;
         return 1;
-    // Constructing binary tries
-    std::chrono::steady_clock::time_point begin =
-        std::chrono::steady_clock::now();
+    }
+    // Updating priority tries
+    begin = clock();
     while (getline(u_file, buffer)) {
         if (buffer.length() > 0) {
-            build_node(root, buffer, 0);
+            build_node(root, v4sub2nr(buffer), 0);
         }
     }
-    std::chrono::steady_clock::time_point end =
-        std::chrono::steady_clock::now();
+    end = clock();
     u_file.close();
-    std::cout << "Update Time = "
-              << std::chrono::duration_cast<std::chrono::microseconds>(end -
-                                                                       begin)
-                     .count()
-              << "[µs]" << std::endl;
+    cout << "Update: " << end - begin << " clocks" << endl;
 
     // Search
     ifstream s_file(s_filename);
     // Failed to open file
-    if (!s_file.is_open())
+    if (!s_file.is_open()) {
+        cout << "Failed to open file." << endl;
         return 1;
-    // Constructing binary tries
-    begin = std::chrono::steady_clock::now();
+    }
+    // Searching priority tries
+    begin = clock();
     while (getline(s_file, buffer)) {
         if (buffer.length() > 0) {
-            search(root, buffer);
+            search(root, v42ull(buffer));
         }
     }
-    end = std::chrono::steady_clock::now();
+    end = clock();
     s_file.close();
-    std::cout << "Search Time = "
-              << std::chrono::duration_cast<std::chrono::microseconds>(end -
-                                                                       begin)
-                     .count()
-              << "[µs]" << std::endl;
+    cout << "Search: " << end - begin << " clocks" << endl;
 
     // Free Memory
     free_root(root);

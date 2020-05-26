@@ -1,6 +1,5 @@
 *.exe
 .vscode/
-rip
-test.cpp
 .idea/
 __pycache__/
+raw.txt
