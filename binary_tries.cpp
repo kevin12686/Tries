@@ -149,8 +149,6 @@ int main() {
     s_file.close();
     cout << "Search: " << end - begin << " clocks" << endl;
 
-    printNR4(search(root, v42ul("12.187.183.3")));
-
     // Free Memory
     free_nodes(root);
 

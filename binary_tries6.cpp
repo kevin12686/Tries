@@ -79,9 +79,9 @@ netrange6 search(node *root, ipv6 addr) {
         }
 
         if (!ptr->empty) {
-            if (ptr->net.mask > 64) {
+            if (ptr->net.mask > Ptbits) {
                 // check addr1 & addr2
-                shift = Ptbits - (ptr->net.mask % Ptbits);
+                shift = IPbits - ptr->net.mask;
                 enclosure = addr.addr1 == ptr->net.addr.addr1 &&
                             addr.addr2 >> shift == ptr->net.addr.addr2 >> shift;
             } else {
@@ -160,8 +160,6 @@ int main() {
     end = clock();
     s_file.close();
     cout << "Search: " << end - begin << " clocks" << endl;
-
-    printNR6(search(root, v62ipv6("2001:550:4702:ff02::")));
 
     // Free Memory
     free_nodes(root);

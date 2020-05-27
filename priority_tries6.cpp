@@ -41,24 +41,42 @@ void build_node(node *root, netrange6 net, int level) {
             root->_type = NType::ORDINARY;
         return;
     } else {
-        unsigned char shift = IPbits - root->net.mask;
+        unsigned char shift = 0;
+        bool enclosure = false;
+        if (root->net.mask > Ptbits) {
+            // check addr1 & addr2
+            shift = IPbits - root->net.mask;
+            enclosure =
+                net.addr.addr1 == root->net.addr.addr1 &&
+                net.addr.addr2 >> shift == root->net.addr.addr2 >> shift;
+        } else {
+            // check addr1
+            shift = Ptbits - root->net.mask;
+            enclosure =
+                net.addr.addr1 >> shift == root->net.addr.addr1 >> shift;
+        }
         if (net.mask == level && root->_type == NType::PRIORITY) {
             netrange6 temp_net = root->net;
             root->net = net;
             net = temp_net;
             root->_type = NType::ORDINARY;
-        } else if (net.mask > root->net.mask &&
-                   net.addr >> shift == root->net.addr >> shift &&
+        } else if (net.mask > root->net.mask && enclosure &&
                    root->_type == NType::PRIORITY) {
-            netrange temp_net = root->net;
+            netrange6 temp_net = root->net;
             root->net = net;
             net = temp_net;
         }
         node *next = NULL;
-        unsigned long mask = 1;
-        unsigned long sbit = 0;
-        mask <<= (IPbits - (++level) - 1);
-        sbit = net.addr & mask;
+        level++;
+        unsigned long long mask = 1;
+        unsigned long long sbit = 0;
+        if (level > Ptbits) {
+            mask <<= (IPbits - level - 1);
+            sbit = net.addr.addr2 & mask;
+        } else {
+            mask <<= (Ptbits - level - 1);
+            sbit = net.addr.addr1 & mask;
+        }
 
         if (sbit == 0) {
             if (root->left == NULL)
@@ -73,25 +91,43 @@ void build_node(node *root, netrange6 net, int level) {
     }
 }
 
-netrange search(node *root, ipv6 addr) {
-    netrange BMP;
-    BMP.addr = 0;
+netrange6 search(node *root, ipv6 addr) {
+    netrange6 BMP;
+    BMP.addr.addr1 = 0;
+    BMP.addr.addr2 = 0;
     BMP.mask = 0;
     node *ptr = root;
     unsigned char level = 0;
     unsigned char shift = 0;
-    unsigned long mask = 1;
-    unsigned long sbit = 0;
+    unsigned long long mask = 1;
+    unsigned long long sbit = 0;
+    bool enclosure = false;
     do {
         shift = IPbits - ptr->net.mask;
-        if (addr >> shift == ptr->net.addr >> shift) {
+        if (ptr->net.mask > Ptbits) {
+            // check addr1 & addr2
+            shift = IPbits - ptr->net.mask;
+            enclosure = addr.addr1 == ptr->net.addr.addr1 &&
+                        addr.addr2 >> shift == ptr->net.addr.addr2 >> shift;
+        } else {
+            // check addr1
+            shift = Ptbits - ptr->net.mask;
+            enclosure = addr.addr1 >> shift == ptr->net.addr.addr1 >> shift;
+        }
+        if (enclosure) {
             BMP = ptr->net;
             if (ptr->_type == NType::PRIORITY)
                 break;
         }
         mask = 1;
-        mask <<= (IPbits - (++level) - 1);
-        sbit = addr & mask;
+        level++;
+        if (level > Ptbits) {
+            mask <<= (IPbits - level - 1);
+            sbit = addr.addr2 & mask;
+        } else {
+            mask <<= (Ptbits - level - 1);
+            sbit = addr.addr1 & mask;
+        }
         if (sbit == 0)
             ptr = ptr->left;
         else
@@ -160,8 +196,6 @@ int main() {
     end = clock();
     s_file.close();
     cout << "Search: " << end - begin << " clocks" << endl;
-
-    printNR4(search(root, v62ipv6("2001:550:4702:ff02::")));
 
     // Free Memory
     free_nodes(root);

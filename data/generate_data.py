@@ -9,10 +9,11 @@ if __name__ == '__main__':
     with open(RAW_FILE, 'r', encoding='utf-8') as f:
         for line in f:
             subnet = line.split('|')[5]
-            if ':' in subnet:
-                v6_set.add('{}\n'.format(subnet))
-            else:
-                v4_set.add('{}\n'.format(subnet))
+            if '/' in subnet:
+                if ':' in subnet:
+                    v6_set.add('{}\n'.format(subnet.strip()))
+                else:
+                    v4_set.add('{}\n'.format(subnet.strip()))
 
     v4_list = list(v4_set)
     v6_list = list(v6_set)
