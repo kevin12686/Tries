@@ -2,14 +2,15 @@
 #include <fstream>
 #include <iostream>
 #include <time.h>
-#define IPbits 32
+#define IPbits 128
+#define Ptbits 64
 
 using namespace std;
 
 enum NType { PRIORITY, ORDINARY, EMPTY };
 
 typedef struct Node {
-    netrange net;
+    netrange6 net;
     NType _type = NType::EMPTY;
     struct Node *left = NULL;
     struct Node *right = NULL;
@@ -31,7 +32,7 @@ void free_nodes(node *root) {
     free(root);
 }
 
-void build_node(node *root, netrange net, int level) {
+void build_node(node *root, netrange6 net, int level) {
     if (root->_type == NType::EMPTY) {
         root->net = net;
         if (net.mask > level)
@@ -42,7 +43,7 @@ void build_node(node *root, netrange net, int level) {
     } else {
         unsigned char shift = IPbits - root->net.mask;
         if (net.mask == level && root->_type == NType::PRIORITY) {
-            netrange temp_net = root->net;
+            netrange6 temp_net = root->net;
             root->net = net;
             net = temp_net;
             root->_type = NType::ORDINARY;
@@ -72,7 +73,7 @@ void build_node(node *root, netrange net, int level) {
     }
 }
 
-netrange search(node *root, unsigned long addr) {
+netrange search(node *root, ipv6 addr) {
     netrange BMP;
     BMP.addr = 0;
     BMP.mask = 0;
@@ -100,10 +101,10 @@ netrange search(node *root, unsigned long addr) {
 }
 
 int main() {
-    cout << "Priority Tries (IPv4)" << endl;
-    const string b_filename = "./data/ipv4_build.txt";
-    const string u_filename = "./data/ipv4_update.txt";
-    const string s_filename = "./data/ipv4_search_500000.txt";
+    cout << "Priority Tries (IPv6)" << endl;
+    const string b_filename = "./data/ipv6_build.txt";
+    const string u_filename = "./data/ipv6_update.txt";
+    const string s_filename = "./data/ipv6_search_100.txt";
 
     node *root = create_node();
     string buffer;
@@ -119,7 +120,7 @@ int main() {
     // Constructing priority tries
     while (getline(b_file, buffer)) {
         if (buffer.length() > 0) {
-            build_node(root, v4sub2nr(buffer), 0);
+            build_node(root, v6sub2nr6(buffer), 0);
         }
     }
     b_file.close();
@@ -135,7 +136,7 @@ int main() {
     begin = clock();
     while (getline(u_file, buffer)) {
         if (buffer.length() > 0) {
-            build_node(root, v4sub2nr(buffer), 0);
+            build_node(root, v6sub2nr6(buffer), 0);
         }
     }
     end = clock();
@@ -153,14 +154,14 @@ int main() {
     begin = clock();
     while (getline(s_file, buffer)) {
         if (buffer.length() > 0) {
-            search(root, v42ul(buffer));
+            search(root, v62ipv6(buffer));
         }
     }
     end = clock();
     s_file.close();
     cout << "Search: " << end - begin << " clocks" << endl;
 
-    printNR4(search(root, v42ul("12.187.183.3")));
+    printNR4(search(root, v62ipv6("2001:550:4702:ff02::")));
 
     // Free Memory
     free_nodes(root);

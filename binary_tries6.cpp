@@ -2,12 +2,13 @@
 #include <fstream>
 #include <iostream>
 #include <time.h>
-#define IPbits 32
+#define IPbits 128
+#define Ptbits 64
 
 using namespace std;
 
 typedef struct Node {
-    netrange net;
+    netrange6 net;
     bool empty = true;
     struct Node *left = NULL;
     struct Node *right = NULL;
@@ -30,14 +31,14 @@ void free_nodes(node *root) {
 }
 
 // Using to construct a binery tries with prefixes
-void build_node(node *root, netrange net) {
-    unsigned long mask = 1;
-    unsigned long sbit = 0;
+void build_node(node *root, netrange6 net) {
+    unsigned long long mask = 1;
+    unsigned long long sbit = 0;
     node *ptr = root;
     for (int i = IPbits - 1; i >= IPbits - net.mask; i--) {
         mask = 1;
-        mask <<= i;
-        sbit = net.addr & mask;
+        mask <<= (i % Ptbits);
+        sbit = i > Ptbits ? net.addr.addr1 & mask : net.addr.addr2 & mask;
         if (sbit == 0) {
             if (!ptr->left) {
                 ptr->left = create_node();
@@ -54,17 +55,18 @@ void build_node(node *root, netrange net) {
     ptr->empty = false;
 }
 
-netrange search(node *root, unsigned long addr) {
-    unsigned long mask = 1;
-    unsigned long sbit = 0;
+netrange6 search(node *root, ipv6 addr) {
+    unsigned long long mask = 1;
+    unsigned long long sbit = 0;
     unsigned char shift = 0;
+    bool enclosure = false;
     node *ptr = root;
-    netrange BMP;
+    netrange6 BMP;
 
     for (int i = IPbits - 1; i >= 0; i--) {
         mask = 1;
-        mask <<= i;
-        sbit = addr & mask;
+        mask <<= (i % Ptbits);
+        sbit = i > Ptbits ? addr.addr1 & mask : addr.addr2 & mask;
 
         if (sbit == 0) {
             if (!ptr->left)
@@ -77,8 +79,18 @@ netrange search(node *root, unsigned long addr) {
         }
 
         if (!ptr->empty) {
+            if (ptr->net.mask > 64) {
+                // check addr1 & addr2
+                shift = Ptbits - (ptr->net.mask % Ptbits);
+                enclosure = addr.addr1 == ptr->net.addr.addr1 &&
+                            addr.addr2 >> shift == ptr->net.addr.addr2 >> shift;
+            } else {
+                // check addr1
+                shift = Ptbits - ptr->net.mask;
+                enclosure = addr.addr1 >> shift == ptr->net.addr.addr1 >> shift;
+            }
             shift = IPbits - ptr->net.mask;
-            if (addr >> shift == ptr->net.addr >> shift) {
+            if (enclosure) {
                 BMP = ptr->net;
             } else {
                 break;
@@ -89,10 +101,10 @@ netrange search(node *root, unsigned long addr) {
 }
 
 int main() {
-    cout << "Binary Tries (IPv4)" << endl;
-    const string b_filename = "./data/ipv4_build.txt";
-    const string u_filename = "./data/ipv4_update.txt";
-    const string s_filename = "./data/ipv4_search_500000.txt";
+    cout << "Binary Tries (IPv6)" << endl;
+    const string b_filename = "./data/ipv6_build.txt";
+    const string u_filename = "./data/ipv6_update.txt";
+    const string s_filename = "./data/ipv6_search_100.txt";
 
     node *root = create_node();
     string buffer;
@@ -108,7 +120,7 @@ int main() {
     // Constructing binary tries
     while (getline(b_file, buffer)) {
         if (buffer.length() > 0) {
-            build_node(root, v4sub2nr(buffer));
+            build_node(root, v6sub2nr6(buffer));
         }
     }
     b_file.close();
@@ -124,7 +136,7 @@ int main() {
     begin = clock();
     while (getline(u_file, buffer)) {
         if (buffer.length() > 0) {
-            build_node(root, v4sub2nr(buffer));
+            build_node(root, v6sub2nr6(buffer));
         }
     }
     end = clock();
@@ -142,14 +154,14 @@ int main() {
     begin = clock();
     while (getline(s_file, buffer)) {
         if (buffer.length() > 0) {
-            search(root, v42ul(buffer));
+            search(root, v62ipv6(buffer));
         }
     }
     end = clock();
     s_file.close();
     cout << "Search: " << end - begin << " clocks" << endl;
 
-    printNR4(search(root, v42ul("12.187.183.3")));
+    printNR6(search(root, v62ipv6("2001:550:4702:ff02::")));
 
     // Free Memory
     free_nodes(root);
