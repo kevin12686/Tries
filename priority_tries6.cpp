@@ -71,10 +71,10 @@ void build_node(node *root, netrange6 net, int level) {
         unsigned long long mask = 1;
         unsigned long long sbit = 0;
         if (level > Ptbits) {
-            mask <<= (IPbits - level - 1);
+            mask <<= (IPbits - level);
             sbit = net.addr.addr2 & mask;
         } else {
-            mask <<= (Ptbits - level - 1);
+            mask <<= (Ptbits - level);
             sbit = net.addr.addr1 & mask;
         }
 
@@ -122,10 +122,10 @@ netrange6 search(node *root, ipv6 addr) {
         mask = 1;
         level++;
         if (level > Ptbits) {
-            mask <<= (IPbits - level - 1);
+            mask <<= (IPbits - level);
             sbit = addr.addr2 & mask;
         } else {
-            mask <<= (Ptbits - level - 1);
+            mask <<= (Ptbits - level);
             sbit = addr.addr1 & mask;
         }
         if (sbit == 0)

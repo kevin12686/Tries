@@ -56,7 +56,7 @@ void build_node(node *root, netrange net, int level) {
         node *next = NULL;
         unsigned long mask = 1;
         unsigned long sbit = 0;
-        mask <<= (IPbits - (++level) - 1);
+        mask <<= (IPbits - (++level));
         sbit = net.addr & mask;
 
         if (sbit == 0) {
@@ -89,7 +89,7 @@ netrange search(node *root, unsigned long addr) {
                 break;
         }
         mask = 1;
-        mask <<= (IPbits - (++level) - 1);
+        mask <<= (IPbits - (++level));
         sbit = addr & mask;
         if (sbit == 0)
             ptr = ptr->left;
